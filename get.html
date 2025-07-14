@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Quiz App Launcher</title>
+    <script>
+        // OSを検出して適切なスクリプトにリダイレクト
+        const userAgent = navigator.userAgent.toLowerCase();
+        if (userAgent.indexOf('win') > -1) {
+            window.location.href = 'https://raw.githubusercontent.com/muumuu8181/quiz-app/master/quiz-app-launcher.bat';
+        } else {
+            window.location.href = 'https://raw.githubusercontent.com/muumuu8181/quiz-app/master/quiz-app-launcher.sh';
+        }
+    </script>
+</head>
+<body>
+    <p>リダイレクト中...</p>
+</body>
+</html>
