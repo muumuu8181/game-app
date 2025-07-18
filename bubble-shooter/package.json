@@ -1,0 +1,16 @@
+{
+  "name": "colorful-gravity-puzzle",
+  "version": "1.0.0",
+  "description": "楽しいカラフル重力パズルゲーム",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "author": "Claude",
+  "license": "MIT"
+}

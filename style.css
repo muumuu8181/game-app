@@ -29,6 +29,31 @@ header {
     color: white;
 }
 
+/* ゲームメニュー */
+.game-menu {
+    text-align: center;
+    margin: 10px 0;
+}
+
+.game-link {
+    display: inline-block;
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 1.1em;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.game-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    background: linear-gradient(45deg, #764ba2, #667eea);
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;

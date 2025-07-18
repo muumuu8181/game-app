@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 カラフルバブルシューター 🎯</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <h1>🎯 カラフルバブルシューター 🎯</h1>
+            <div class="score-board">
+                <div class="score">スコア: <span id="score">0</span></div>
+                <div class="level">レベル: <span id="level">1</span></div>
+                <div class="lines">消した球: <span id="lines">0</span></div>
+            </div>
+        </header>
+        
+        <div class="game-area">
+            <div class="next-piece">
+                <h3>次のバブル</h3>
+                <canvas id="next-canvas" width="60" height="60"></canvas>
+            </div>
+            
+            <div class="game-board">
+                <canvas id="game-canvas" width="400" height="380"></canvas>
+                <div class="game-over" id="game-over" style="display: none;">
+                    <h2>ゲームオーバー！</h2>
+                    <p>最終スコア: <span id="final-score">0</span></p>
+                    <button onclick="restartGame()">もう一度プレイ</button>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <h3>操作方法</h3>
+                <div class="control-buttons">
+                    <button class="control-btn left-btn" onclick="rotateLeft()">⬅️</button>
+                    <button class="control-btn shoot-btn" onclick="shootBubble()">🎯</button>
+                    <button class="control-btn right-btn" onclick="rotateRight()">➡️</button>
+                </div>
+                <div class="instructions">
+                    <p>🎯 同じ色を3つ以上つなげて消そう！</p>
+                    <small>⌨️ キー: ←→ スペース | 🖱️ マウス: クリックで発射</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="game.js"></script>
+    <script>
+        // ページ読み込み後、自動でデバッグチェック
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.gameDebug) {
+                    const status = window.gameDebug.checkBubbles();
+                    console.log('初期状態:', status);
+                }
+            }, 1000);
+        });
+    </script>
+    <script>
+        // 簡単な音効果
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playPop() {
+            // より迫力のある消滅音
+            const oscillator1 = audioCtx.createOscillator();
+            const oscillator2 = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator1.connect(gainNode);
+            oscillator2.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            // 二重音で迫力アップ
+            oscillator1.frequency.setValueAtTime(800, audioCtx.currentTime);
+            oscillator1.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.15);
+            oscillator2.frequency.setValueAtTime(1200, audioCtx.currentTime);
+            oscillator2.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.15);
+            
+            gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            
+            oscillator1.start(audioCtx.currentTime);
+            oscillator2.start(audioCtx.currentTime);
+            oscillator1.stop(audioCtx.currentTime + 0.15);
+            oscillator2.stop(audioCtx.currentTime + 0.15);
+        }
+        
+        function playCollision() {
+            // より迫力のある衝突音
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            const filterNode = audioCtx.createBiquadFilter();
+            
+            oscillator.connect(filterNode);
+            filterNode.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            // ノイズ的な音色
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.08);
+            
+            // フィルターで音色を調整
+            filterNode.type = 'lowpass';
+            filterNode.frequency.setValueAtTime(800, audioCtx.currentTime);
+            filterNode.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.08);
+            
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+            
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + 0.08);
+        }
+    </script>
+</body>
+</html>
