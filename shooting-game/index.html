@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シューティングゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(180deg, #001122 0%, #003366 100%);
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: transparent;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        #score {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 32px;
+            z-index: 200;
+            display: none;
+        }
+        
+        #restartBtn {
+            background: #ff6600;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui">
+            <div id="score">スコア: 0</div>
+            <div id="playerInfo" style="margin-top: 5px; font-size: 11px; line-height: 1.3;">
+                <div style="display: flex; gap: 8px; margin-bottom: 3px; align-items: center;">
+                    <span style="display: flex; align-items: center; gap: 3px;">武器: <span id="weaponIcon" style="display: inline-block; width: 16px; height: 12px; background: yellow; border-radius: 2px;"></span> Lv.<span id="weaponLevel">1</span></span>
+                    <span style="display: flex; align-items: center; gap: 3px;">サブ: <span id="subWeaponIcon" style="display: inline-block; width: 12px; height: 12px; background: #666; border-radius: 50%;"></span></span>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 3px;">
+                    <span>速度: <span id="playerSpeed">8</span> (Lv.<span id="speedLevel">1</span>)</span>
+                    <span>射撃: <span id="fireRateDisplay">150ms</span> (Lv.<span id="fireRateLevel">1</span>)</span>
+                </div>
+                <div style="margin-bottom: 5px;">ステージ: <span id="stageDisplay">1</span></div>
+                <div style="font-size: 10px;">
+                    進行度: <span id="stageProgress">0</span>/<span id="stageTarget">50</span>
+                    <div style="background: #333; width: 120px; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 2px;">
+                        <div id="stageProgressBar" style="background: #00ff00; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="powerUpStatus" style="margin-top: 8px; font-size: 10px;">
+                <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 3px;">
+                    <span style="color: #00ffff; width: 35px;">速度</span>
+                    <span style="width: 20px;">(<span id="speedExpDisplay">0</span>/5)</span>
+                    <div style="background: #333; width: 60px; height: 6px; border-radius: 3px; overflow: hidden;">
+                        <div id="speedBar" style="background: #00ffff; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 3px;">
+                    <span style="color: #ffff00; width: 35px;">射撃</span>
+                    <span style="width: 20px;">(<span id="fireRateExpDisplay">0</span>/5)</span>
+                    <div style="background: #333; width: 60px; height: 6px; border-radius: 3px; overflow: hidden;">
+                        <div id="fireRateBar" style="background: #ffff00; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="color: #ff00ff; width: 35px;">武器</span>
+                    <span style="width: 20px;">(<span id="weaponExpDisplay">0</span>/5)</span>
+                    <div style="background: #333; width: 60px; height: 6px; border-radius: 3px; overflow: hidden;">
+                        <div id="weaponBar" style="background: #ff00ff; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="gameOver">
+            <div>ゲームオーバー</div>
+            <div id="finalScore"></div>
+            <button id="restartBtn">もう一度プレイ</button>
+        </div>
+        
+        <div id="controls">
+            PC: 矢印キー移動、自動射撃 | タブレット: タッチで移動、自動射撃
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+        const playerLevelElement = document.getElementById('playerLevel');
+        const playerSpeedElement = document.getElementById('playerSpeed');
+        const fireRateDisplayElement = document.getElementById('fireRateDisplay');
+        const speedBarElement = document.getElementById('speedBar');
+        const fireRateBarElement = document.getElementById('fireRateBar');
+        const weaponBarElement = document.getElementById('weaponBar');
+        const stageDisplayElement = document.getElementById('stageDisplay');
+        const stageProgressElement = document.getElementById('stageProgress');
+        const stageTargetElement = document.getElementById('stageTarget');
+        const stageProgressBarElement = document.getElementById('stageProgressBar');
+        const weaponTypeElement = document.getElementById('weaponType');
+        const weaponLevelElement = document.getElementById('weaponLevel');
+        const speedLevelElement = document.getElementById('speedLevel');
+        const fireRateLevelElement = document.getElementById('fireRateLevel');
+        const speedProgressElement = document.getElementById('speedProgress');
+        const fireRateProgressElement = document.getElementById('fireRateProgress');
+        const weaponProgressElement = document.getElementById('weaponProgress');
+        const subWeaponTypeElement = document.getElementById('subWeaponType');
+        const weaponIconElement = document.getElementById('weaponIcon');
+        const subWeaponIconElement = document.getElementById('subWeaponIcon');
+        const speedExpDisplayElement = document.getElementById('speedExpDisplay');
+        const fireRateExpDisplayElement = document.getElementById('fireRateExpDisplay');
+        const weaponExpDisplayElement = document.getElementById('weaponExpDisplay');
+
+        // キャンバスサイズ設定
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // ゲーム状態
+        let gameState = {
+            running: true,
+            score: 0,
+            player: {
+                x: canvas.width / 2,
+                y: canvas.height - 100,
+                width: 40,
+                height: 40,
+                speed: 8,
+                weaponLevel: 1,
+                speedLevel: 1,
+                fireRateLevel: 1,
+                weaponType: 'normal',
+                subWeaponType: 'none',
+                speedExp: 0,
+                weaponExp: 0,
+                fireRateExp: 0,
+                fireRate: 150,
+                lastShot: 0,
+                lastSubShot: 0,
+                autoFire: true
+            },
+            bullets: [],
+            enemies: [],
+            powerUps: [],
+            particles: [],
+            keys: {},
+            lastEnemySpawn: 0,
+            enemySpawnRate: 1000,
+            lastPowerUpSpawn: 0,
+            powerUpSpawnRate: 8000,
+            stage: 1,
+            stageProgress: 0,
+            stageTarget: 50,
+            audioContext: null,
+            sounds: {}
+        };
+
+        // プレイヤー描画
+        function drawPlayer() {
+            // プレイヤー本体（宇宙船風）
+            ctx.fillStyle = '#00ccff';
+            ctx.beginPath();
+            ctx.moveTo(gameState.player.x, gameState.player.y - 18);
+            ctx.lineTo(gameState.player.x - 12, gameState.player.y + 15);
+            ctx.lineTo(gameState.player.x - 6, gameState.player.y + 10);
+            ctx.lineTo(gameState.player.x + 6, gameState.player.y + 10);
+            ctx.lineTo(gameState.player.x + 12, gameState.player.y + 15);
+            ctx.closePath();
+            ctx.fill();
+            
+            // コックピット
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(gameState.player.x, gameState.player.y - 5, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // エンジン
+            ctx.fillStyle = '#ff6600';
+            ctx.fillRect(gameState.player.x - 8, gameState.player.y + 10, 4, 6);
+            ctx.fillRect(gameState.player.x + 4, gameState.player.y + 10, 4, 6);
+        }
+
+        // 弾丸クラス
+        class Bullet {
+            constructor(x, y, type = 'normal', angle = 0, target = null) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.angle = angle;
+                this.target = target;
+                this.setupType();
+                this.life = 0;
+            }
+
+            setupType() {
+                switch(this.type) {
+                    case 'normal':
+                        this.width = 4;
+                        this.height = 10;
+                        this.speedX = 0;
+                        this.speedY = -8;
+                        this.color = '#ffff00';
+                        this.damage = 3; // 最高攻撃力
+                        this.pierce = false;
+                        break;
+                    case 'spread':
+                        this.width = 3;
+                        this.height = 8;
+                        this.speedX = Math.sin(this.angle) * 6;
+                        this.speedY = -Math.cos(this.angle) * 6;
+                        this.color = '#ff6600';
+                        this.damage = 2; // 中程度攻撃力
+                        this.pierce = false;
+                        break;
+                    case 'pierce':
+                        this.width = 6;
+                        this.height = 15;
+                        this.speedX = 0;
+                        this.speedY = -12;
+                        this.color = '#00ffff';
+                        this.damage = 4; // 貫通効果付き高攻撃力
+                        this.pierce = true;
+                        break;
+                    case 'homing':
+                        this.width = 5;
+                        this.height = 8;
+                        this.speed = 6;
+                        this.speedX = 0;
+                        this.speedY = -6;
+                        this.color = '#ff00ff';
+                        this.damage = 1; // 低攻撃力（便利さでバランス）
+                        this.pierce = false;
+                        this.turnSpeed = 0.1;
+                        this.timeoutLife = 300; // 5秒でタイムアウト
+                        this.hasTarget = false;
+                        break;
+                    case 'beam':
+                        this.width = 20;
+                        this.height = canvas.height;
+                        this.speedX = 0;
+                        this.speedY = 0;
+                        this.color = '#00ff00';
+                        this.damage = 5; // 最強攻撃力（使いづらいが最強）
+                        this.pierce = true;
+                        this.maxLife = 10;
+                        break;
+                    case 'missile':
+                        this.width = 6;
+                        this.height = 12;
+                        this.speedX = 0;
+                        this.speedY = -5;
+                        this.color = '#ff9900';
+                        this.damage = 2; // 中攻撃力
+                        this.pierce = false;
+                        break;
+                    case 'laser':
+                        this.width = 2;
+                        this.height = 8;
+                        this.speedX = 0;
+                        this.speedY = -12;
+                        this.color = '#ff0066';
+                        this.damage = 3; // 高攻撃力（高速・細い）
+                        this.pierce = false;
+                        break;
+                    case 'orbit':
+                        this.width = 4;
+                        this.height = 4;
+                        this.orbitRadius = 50;
+                        this.orbitAngle = angle;
+                        this.orbitSpeed = 0.1;
+                        this.color = '#66ccff';
+                        this.damage = 2; // 中攻撃力（常時防御）
+                        this.pierce = false;
+                        break;
+                }
+            }
+
+            update() {
+                if (this.type === 'homing' && this.life > 10) {
+                    // ターゲットの有効性チェック
+                    if (this.target && this.isTargetValid()) {
+                        this.hasTarget = true;
+                        // ホーミング処理
+                        const dx = this.target.x - this.x;
+                        const dy = this.target.y - this.y;
+                        const targetAngle = Math.atan2(dx, -dy);
+                        const currentAngle = Math.atan2(this.speedX, -this.speedY);
+                        
+                        let angleDiff = targetAngle - currentAngle;
+                        if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                        if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                        
+                        const newAngle = currentAngle + Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), this.turnSpeed);
+                        this.speedX = Math.sin(newAngle) * this.speed;
+                        this.speedY = -Math.cos(newAngle) * this.speed;
+                    } else {
+                        // ターゲットがいない場合は直進
+                        if (this.hasTarget) {
+                            // 一度ターゲットがあったが失った場合、画面外に向かう
+                            this.speedY = -this.speed;
+                            this.speedX *= 0.9; // 徐々に直進に
+                        }
+                        this.hasTarget = false;
+                    }
+                } else if (this.type === 'orbit') {
+                    // オービット処理
+                    this.orbitAngle += this.orbitSpeed;
+                    this.x = gameState.player.x + Math.cos(this.orbitAngle) * this.orbitRadius;
+                    this.y = gameState.player.y + Math.sin(this.orbitAngle) * this.orbitRadius;
+                }
+                
+                if (this.type !== 'beam' && this.type !== 'orbit') {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                }
+                
+                this.life++;
+            }
+
+            isTargetValid() {
+                if (!this.target) return false;
+                
+                try {
+                    // ターゲットが敵リストに存在するかチェック
+                    const exists = gameState.enemies && gameState.enemies.includes(this.target);
+                    if (!exists) return false;
+                    
+                    // ターゲットが画面内にいるかチェック
+                    return this.target.x > 0 && this.target.x < canvas.width && 
+                           this.target.y > 0 && this.target.y < canvas.height;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                
+                if (this.type === 'pierce' || this.type === 'beam' || this.type === 'laser') {
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = this.type === 'beam' ? 15 : 5;
+                }
+                
+                if (this.type === 'beam') {
+                    const alpha = 1 - (this.life / this.maxLife);
+                    ctx.fillStyle = this.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+                    ctx.fillRect(this.x - this.width / 2, 0, this.width, canvas.height);
+                    
+                    // ビームの当たり判定を可視化
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(this.x - this.width / 2, 0, this.width, canvas.height);
+                } else if (this.type === 'orbit') {
+                    // オービット弾は円形
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.width, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+                }
+                
+                ctx.shadowBlur = 0;
+                ctx.lineWidth = 1;
+            }
+
+            isOffScreen() {
+                if (this.type === 'beam') {
+                    return this.life >= this.maxLife;
+                }
+                if (this.type === 'orbit') {
+                    return this.life > 300; // オービット弾は一定時間で消える
+                }
+                if (this.type === 'homing') {
+                    // ホーミング弾のタイムアウト
+                    if (this.life > this.timeoutLife) return true;
+                }
+                return this.y < -50 || this.y > canvas.height + 50 || 
+                       this.x < -50 || this.x > canvas.width + 50;
+            }
+        }
+
+        // パーティクルクラス
+        class Particle {
+            constructor(x, y, color = '#ff6600') {
+                this.x = x;
+                this.y = y;
+                this.speedX = (Math.random() - 0.5) * 8;
+                this.speedY = (Math.random() - 0.5) * 8 - 2;
+                this.life = 30;
+                this.maxLife = 30;
+                this.size = Math.random() * 4 + 2;
+                this.color = color;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.speedY += 0.2; // 重力
+                this.life--;
+            }
+
+            draw() {
+                const alpha = this.life / this.maxLife;
+                ctx.fillStyle = this.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+                ctx.fillRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        // 敵クラス
+        class Enemy {
+            constructor(type = null) {
+                this.x = Math.random() * (canvas.width - 40) + 20;
+                this.y = -30;
+                this.type = type || this.getRandomType();
+                this.setupType();
+            }
+
+            getRandomType() {
+                const types = ['basic', 'fast', 'strong', 'zigzag'];
+                return types[Math.floor(Math.random() * types.length)];
+            }
+
+            setupType() {
+                switch(this.type) {
+                    case 'basic':
+                        this.width = 30;
+                        this.height = 30;
+                        this.speed = Math.random() * 2 + 1;
+                        this.hp = 1;
+                        this.score = 10;
+                        this.color = '#ff0000';
+                        break;
+                    case 'fast':
+                        this.width = 20;
+                        this.height = 20;
+                        this.speed = Math.random() * 3 + 3;
+                        this.hp = 1;
+                        this.score = 15;
+                        this.color = '#ff6600';
+                        break;
+                    case 'strong':
+                        this.width = 40;
+                        this.height = 40;
+                        this.speed = Math.random() * 1 + 0.5;
+                        this.hp = 3;
+                        this.score = 30;
+                        this.color = '#880000';
+                        break;
+                    case 'zigzag':
+                        this.width = 25;
+                        this.height = 25;
+                        this.speed = Math.random() * 2 + 1;
+                        this.hp = 1;
+                        this.score = 20;
+                        this.color = '#ff00ff';
+                        this.direction = Math.random() > 0.5 ? 1 : -1;
+                        this.zigzagSpeed = 2;
+                        break;
+                }
+            }
+
+            update() {
+                this.y += this.speed;
+                
+                if (this.type === 'zigzag') {
+                    this.x += this.direction * this.zigzagSpeed;
+                    if (this.x <= 20 || this.x >= canvas.width - 20) {
+                        this.direction *= -1;
+                    }
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                
+                if (this.type === 'basic') {
+                    // 基本敵（UFO風）
+                    ctx.beginPath();
+                    ctx.ellipse(this.x, this.y, this.width / 2, this.height / 3, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#aa0000';
+                    ctx.beginPath();
+                    ctx.ellipse(this.x, this.y - 5, this.width / 3, this.height / 4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.type === 'fast') {
+                    // 高速敵（戦闘機風）
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y + this.height / 2);
+                    ctx.lineTo(this.x - this.width / 2, this.y - this.height / 2);
+                    ctx.lineTo(this.x - this.width / 4, this.y - this.height / 3);
+                    ctx.lineTo(this.x + this.width / 4, this.y - this.height / 3);
+                    ctx.lineTo(this.x + this.width / 2, this.y - this.height / 2);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (this.type === 'strong') {
+                    // 強敵（要塞風）
+                    ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+                    ctx.fillStyle = '#440000';
+                    ctx.fillRect(this.x - this.width / 3, this.y - this.height / 3, this.width / 1.5, this.height / 1.5);
+                    ctx.fillStyle = '#660000';
+                    ctx.fillRect(this.x - 4, this.y - 4, 8, 8);
+                } else if (this.type === 'zigzag') {
+                    // ジグザグ敵（クリスタル風）
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y - this.height / 2);
+                    ctx.lineTo(this.x + this.width / 2, this.y);
+                    ctx.lineTo(this.x, this.y + this.height / 2);
+                    ctx.lineTo(this.x - this.width / 2, this.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+                
+                // HPが複数の場合、HPバーを表示
+                if (this.hp > 1) {
+                    const maxHp = this.type === 'strong' ? 3 : this.hp;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(this.x - 15, this.y - this.height / 2 - 10, 30, 4);
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fillRect(this.x - 15, this.y - this.height / 2 - 10, 30 * (this.hp / maxHp), 4);
+                }
+            }
+
+            takeDamage() {
+                this.hp--;
+                return this.hp <= 0;
+            }
+
+            isOffScreen() {
+                return this.y > canvas.height + 50;
+            }
+        }
+
+        // パワーアップアイテムクラス
+        class PowerUp {
+            constructor() {
+                this.x = Math.random() * (canvas.width - 40) + 20;
+                this.y = -30;
+                this.type = this.getRandomType();
+                this.setupType();
+                this.bobOffset = Math.random() * Math.PI * 2;
+                this.bobSpeed = 0.1;
+            }
+
+            getRandomType() {
+                const types = ['speed', 'fireRate', 'weapon', 'weaponType', 'subWeapon'];
+                return types[Math.floor(Math.random() * types.length)];
+            }
+
+            setupType() {
+                switch(this.type) {
+                    case 'speed':
+                        this.width = 25;
+                        this.height = 25;
+                        this.speed = 2;
+                        this.color = '#00ffff';
+                        this.symbol = 'S';
+                        break;
+                    case 'fireRate':
+                        this.width = 25;
+                        this.height = 25;
+                        this.speed = 2;
+                        this.color = '#ffff00';
+                        this.symbol = 'F';
+                        break;
+                    case 'weapon':
+                        this.width = 25;
+                        this.height = 25;
+                        this.speed = 2;
+                        this.color = '#ff00ff';
+                        this.symbol = 'W';
+                        break;
+                    case 'weaponType':
+                        this.width = 25;
+                        this.height = 25;
+                        this.speed = 2;
+                        this.color = '#ff6600';
+                        this.symbol = 'T';
+                        break;
+                    case 'subWeapon':
+                        this.width = 25;
+                        this.height = 25;
+                        this.speed = 2;
+                        this.color = '#9966ff';
+                        this.symbol = 'O';
+                        break;
+                }
+            }
+
+            update() {
+                this.y += this.speed;
+                this.bobOffset += this.bobSpeed;
+            }
+
+            draw() {
+                const bobY = Math.sin(this.bobOffset) * 3;
+                
+                // 光るエフェクト
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                
+                // 外枠
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(
+                    this.x - this.width / 2 - 2,
+                    this.y - this.height / 2 - 2 + bobY,
+                    this.width + 4,
+                    this.height + 4
+                );
+                
+                // 内側
+                ctx.fillStyle = this.color;
+                ctx.fillRect(
+                    this.x - this.width / 2,
+                    this.y - this.height / 2 + bobY,
+                    this.width,
+                    this.height
+                );
+                
+                // シンボル
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#000000';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.symbol, this.x, this.y + 5 + bobY);
+            }
+
+            isOffScreen() {
+                return this.y > canvas.height + 50;
+            }
+        }
+
+        // 衝突判定
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        // プレイヤー移動
+        function updatePlayer() {
+            if (gameState.keys['ArrowLeft'] && gameState.player.x > 20) {
+                gameState.player.x -= gameState.player.speed;
+            }
+            if (gameState.keys['ArrowRight'] && gameState.player.x < canvas.width - 20) {
+                gameState.player.x += gameState.player.speed;
+            }
+            if (gameState.keys['ArrowUp'] && gameState.player.y > 20) {
+                gameState.player.y -= gameState.player.speed;
+            }
+            if (gameState.keys['ArrowDown'] && gameState.player.y < canvas.height - 20) {
+                gameState.player.y += gameState.player.speed;
+            }
+        }
+
+        // 弾丸発射
+        function shootBullet() {
+            const now = Date.now();
+            if (now - gameState.player.lastShot < gameState.player.fireRate) return;
+            
+            const weaponLevel = gameState.player.weaponLevel;
+            const weaponType = gameState.player.weaponType;
+            
+            // 武器タイプ別の射撃パターン
+            if (weaponType === 'normal') {
+                shootNormalPattern(weaponLevel);
+            } else if (weaponType === 'spread') {
+                shootSpreadPattern(weaponLevel);
+            } else if (weaponType === 'homing') {
+                shootHomingPattern(weaponLevel);
+            } else if (weaponType === 'beam') {
+                shootBeamPattern(weaponLevel);
+            }
+            
+            playSound('shoot');
+            gameState.player.lastShot = now;
+        }
+
+        // サブ武器発射
+        function shootSubWeapon() {
+            const now = Date.now();
+            const subType = gameState.player.subWeaponType;
+            if (subType === 'none') return;
+            
+            const subFireRate = 300; // サブ武器の射撃間隔
+            if (now - gameState.player.lastSubShot < subFireRate) return;
+            
+            if (subType === 'missile') {
+                gameState.bullets.push(new Bullet(gameState.player.x - 20, gameState.player.y - 10, 'missile'));
+                gameState.bullets.push(new Bullet(gameState.player.x + 20, gameState.player.y - 10, 'missile'));
+            } else if (subType === 'laser') {
+                for (let i = 0; i < 3; i++) {
+                    const offsetX = (i - 1) * 10;
+                    gameState.bullets.push(new Bullet(gameState.player.x + offsetX, gameState.player.y - 25, 'laser'));
+                }
+            } else if (subType === 'orbit') {
+                // 既存のオービット弾が4個未満の場合のみ追加
+                const existingOrbits = gameState.bullets.filter(bullet => bullet.type === 'orbit').length;
+                if (existingOrbits < 4) {
+                    const angle = (existingOrbits * Math.PI) / 2;
+                    gameState.bullets.push(new Bullet(gameState.player.x, gameState.player.y, 'orbit', angle));
+                }
+            }
+            
+            gameState.player.lastSubShot = now;
+        }
+
+        function shootNormalPattern(level) {
+            const shotCount = Math.min(level, 5);
+            const bulletType = level >= 15 ? 'pierce' : 'normal';
+            
+            for (let i = 0; i < shotCount; i++) {
+                const offsetX = (i - (shotCount - 1) / 2) * 15;
+                gameState.bullets.push(new Bullet(gameState.player.x + offsetX, gameState.player.y - 20, bulletType));
+            }
+        }
+
+        function shootSpreadPattern(level) {
+            const shotCount = Math.min(level + 2, 7);
+            for (let i = 0; i < shotCount; i++) {
+                const angle = ((i / (shotCount - 1)) - 0.5) * Math.PI / 3;
+                gameState.bullets.push(new Bullet(gameState.player.x, gameState.player.y - 20, 'spread', angle));
+            }
+        }
+
+        function shootHomingPattern(level) {
+            const shotCount = Math.min(Math.floor(level / 3) + 1, 4);
+            for (let i = 0; i < shotCount; i++) {
+                const target = findNearestEnemy();
+                const offsetX = (i - (shotCount - 1) / 2) * 20;
+                gameState.bullets.push(new Bullet(gameState.player.x + offsetX, gameState.player.y - 20, 'homing', 0, target));
+            }
+        }
+
+        function shootBeamPattern(level) {
+            if (gameState.bullets.some(bullet => bullet.type === 'beam')) return; // 1つのビームのみ
+            
+            const beamWidth = Math.min(20 + level * 3, 80);
+            const beam = new Bullet(gameState.player.x, gameState.player.y - 20, 'beam');
+            beam.width = beamWidth;
+            gameState.bullets.push(beam);
+        }
+
+        function findNearestEnemy() {
+            let nearest = null;
+            let minDistance = Infinity;
+            
+            gameState.enemies.forEach(enemy => {
+                const distance = Math.sqrt(
+                    Math.pow(enemy.x - gameState.player.x, 2) + 
+                    Math.pow(enemy.y - gameState.player.y, 2)
+                );
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = enemy;
+                }
+            });
+            
+            return nearest;
+        }
+
+        // 自動連続射撃
+        function handleContinuousFire() {
+            if (gameState.player.autoFire) {
+                shootBullet();
+                shootSubWeapon();
+            }
+        }
+
+        // 敵生成（ステージ依存）
+        function spawnEnemy() {
+            const now = Date.now();
+            if (now - gameState.lastEnemySpawn > gameState.enemySpawnRate) {
+                let enemyType;
+                
+                // ステージによって敵の出現パターンを変更
+                if (gameState.stage === 1) {
+                    enemyType = Math.random() < 0.8 ? 'basic' : 'fast';
+                } else if (gameState.stage === 2) {
+                    const rand = Math.random();
+                    if (rand < 0.5) enemyType = 'basic';
+                    else if (rand < 0.8) enemyType = 'fast';
+                    else enemyType = 'strong';
+                } else if (gameState.stage === 3) {
+                    const rand = Math.random();
+                    if (rand < 0.3) enemyType = 'basic';
+                    else if (rand < 0.5) enemyType = 'fast';
+                    else if (rand < 0.8) enemyType = 'strong';
+                    else enemyType = 'zigzag';
+                } else {
+                    // ステージ4以降は全種類ランダム
+                    enemyType = null;
+                }
+                
+                gameState.enemies.push(new Enemy(enemyType));
+                gameState.lastEnemySpawn = now;
+                
+                // ステージが上がるにつれて敵の出現頻度を上げる
+                gameState.enemySpawnRate = Math.max(500, 1000 - (gameState.stage - 1) * 100);
+            }
+        }
+
+        // パワーアップ生成
+        function spawnPowerUp() {
+            const now = Date.now();
+            if (now - gameState.lastPowerUpSpawn > gameState.powerUpSpawnRate) {
+                gameState.powerUps.push(new PowerUp());
+                gameState.lastPowerUpSpawn = now;
+            }
+        }
+
+        // パワーアップ効果適用
+        function applyPowerUp(powerUp) {
+            switch(powerUp.type) {
+                case 'speed':
+                    gameState.player.speedExp++;
+                    if (gameState.player.speedExp >= 5) {
+                        gameState.player.speedLevel = Math.min(gameState.player.speedLevel + 1, 20);
+                        gameState.player.speed = 8 + gameState.player.speedLevel;
+                        gameState.player.speedExp = 0;
+                    }
+                    break;
+                case 'fireRate':
+                    gameState.player.fireRateExp++;
+                    if (gameState.player.fireRateExp >= 5) {
+                        gameState.player.fireRateLevel = Math.min(gameState.player.fireRateLevel + 1, 20);
+                        gameState.player.fireRate = Math.max(150 - gameState.player.fireRateLevel * 6, 30);
+                        gameState.player.fireRateExp = 0;
+                    }
+                    break;
+                case 'weapon':
+                    gameState.player.weaponExp++;
+                    if (gameState.player.weaponExp >= 5) {
+                        gameState.player.weaponLevel = Math.min(gameState.player.weaponLevel + 1, 20);
+                        gameState.player.weaponExp = 0;
+                    }
+                    break;
+                case 'weaponType':
+                    const types = ['normal', 'spread', 'homing', 'beam'];
+                    const currentIndex = types.indexOf(gameState.player.weaponType);
+                    gameState.player.weaponType = types[(currentIndex + 1) % types.length];
+                    break;
+                case 'subWeapon':
+                    const subTypes = ['none', 'missile', 'laser', 'orbit'];
+                    const currentSubIndex = subTypes.indexOf(gameState.player.subWeaponType);
+                    gameState.player.subWeaponType = subTypes[(currentSubIndex + 1) % subTypes.length];
+                    break;
+            }
+            playSound('powerup');
+            updateUI();
+        }
+
+        // 爆発エフェクト生成
+        function createExplosion(x, y, color = '#ff6600') {
+            for (let i = 0; i < 8; i++) {
+                gameState.particles.push(new Particle(x, y, color));
+            }
+        }
+
+        // 音響システム
+        function initAudio() {
+            try {
+                gameState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 簡易的な音を生成（より心地よい音に）
+                gameState.sounds.shoot = createTone(440, 0.05, 'sine');
+                gameState.sounds.explosion = createTone(200, 0.3, 'sawtooth');
+                gameState.sounds.powerup = createTone(880, 0.2, 'sine');
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+
+        function createTone(frequency, duration, type = 'sine') {
+            return { frequency, duration, type };
+        }
+
+        function playSound(soundName) {
+            if (!gameState.audioContext || !gameState.sounds[soundName]) return;
+            
+            try {
+                // AudioContextの状態を確認して再開
+                if (gameState.audioContext.state === 'suspended') {
+                    gameState.audioContext.resume();
+                }
+                
+                const oscillator = gameState.audioContext.createOscillator();
+                const gainNode = gameState.audioContext.createGain();
+                
+                const sound = gameState.sounds[soundName];
+                oscillator.frequency.value = sound.frequency;
+                oscillator.type = sound.type;
+                
+                gainNode.gain.setValueAtTime(soundName === 'shoot' ? 0.03 : 0.1, gameState.audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, gameState.audioContext.currentTime + sound.duration);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(gameState.audioContext.destination);
+                
+                oscillator.start();
+                oscillator.stop(gameState.audioContext.currentTime + sound.duration);
+            } catch (e) {
+                // 音再生エラーは無視
+                console.log('Audio playback error:', e);
+            }
+        }
+
+        // ステージ進行チェック
+        function checkStageProgress() {
+            if (gameState.stageProgress >= gameState.stageTarget) {
+                gameState.stage++;
+                gameState.stageProgress = 0;
+                gameState.stageTarget += 20; // 次のステージは20点多く必要
+                updateUI();
+            }
+        }
+
+        // 武器アイコン更新
+        function updateWeaponIcon() {
+            const weaponType = gameState.player.weaponType;
+            switch(weaponType) {
+                case 'normal':
+                    weaponIconElement.style.background = 'linear-gradient(45deg, #ffff00, #ffaa00)';
+                    weaponIconElement.style.borderRadius = '2px';
+                    weaponIconElement.style.border = '1px solid #fff';
+                    break;
+                case 'spread':
+                    weaponIconElement.style.background = 'linear-gradient(to right, #ff6600, #ff9900, #ff6600)';
+                    weaponIconElement.style.borderRadius = '0 8px 8px 0';
+                    weaponIconElement.style.border = '1px solid #fff';
+                    break;
+                case 'homing':
+                    weaponIconElement.style.background = 'radial-gradient(circle, #ff00ff, #aa00aa)';
+                    weaponIconElement.style.borderRadius = '50%';
+                    weaponIconElement.style.border = '1px solid #fff';
+                    break;
+                case 'beam':
+                    weaponIconElement.style.background = 'linear-gradient(90deg, #00ff00, #00aa00, #00ff00)';
+                    weaponIconElement.style.borderRadius = '1px';
+                    weaponIconElement.style.border = '1px solid #fff';
+                    weaponIconElement.style.boxShadow = '0 0 4px #00ff00';
+                    break;
+            }
+        }
+
+        function updateSubWeaponIcon() {
+            const subType = gameState.player.subWeaponType;
+            switch(subType) {
+                case 'none':
+                    subWeaponIconElement.style.background = '#666';
+                    subWeaponIconElement.style.borderRadius = '50%';
+                    subWeaponIconElement.style.border = 'none';
+                    subWeaponIconElement.style.boxShadow = 'none';
+                    break;
+                case 'missile':
+                    subWeaponIconElement.style.background = 'linear-gradient(45deg, #ff9900, #ffaa00)';
+                    subWeaponIconElement.style.borderRadius = '2px 8px 8px 2px';
+                    subWeaponIconElement.style.border = '1px solid #fff';
+                    subWeaponIconElement.style.boxShadow = 'none';
+                    break;
+                case 'laser':
+                    subWeaponIconElement.style.background = 'linear-gradient(90deg, #ff0066, #ff3399)';
+                    subWeaponIconElement.style.borderRadius = '1px';
+                    subWeaponIconElement.style.border = '1px solid #fff';
+                    subWeaponIconElement.style.boxShadow = '0 0 3px #ff0066';
+                    break;
+                case 'orbit':
+                    subWeaponIconElement.style.background = 'radial-gradient(circle, #66ccff, #3399cc)';
+                    subWeaponIconElement.style.borderRadius = '50%';
+                    subWeaponIconElement.style.border = '1px solid #fff';
+                    subWeaponIconElement.style.boxShadow = '0 0 3px #66ccff';
+                    break;
+            }
+        }
+
+        // UI更新
+        function updateUI() {
+            weaponLevelElement.textContent = gameState.player.weaponLevel;
+            updateWeaponIcon();
+            updateSubWeaponIcon();
+            playerSpeedElement.textContent = gameState.player.speed;
+            speedLevelElement.textContent = gameState.player.speedLevel;
+            fireRateDisplayElement.textContent = Math.round(gameState.player.fireRate) + 'ms';
+            fireRateLevelElement.textContent = gameState.player.fireRateLevel;
+            stageDisplayElement.textContent = gameState.stage;
+            stageProgressElement.textContent = gameState.stageProgress;
+            stageTargetElement.textContent = gameState.stageTarget;
+            
+            // ステージ進行度バー
+            const stageBarProgress = (gameState.stageProgress / gameState.stageTarget) * 100;
+            stageProgressBarElement.style.width = stageBarProgress + '%';
+            
+            // EXPゲージ更新（5個で1レベル）
+            speedExpDisplayElement.textContent = gameState.player.speedExp;
+            const speedExpProgress = (gameState.player.speedExp / 5) * 100;
+            speedBarElement.style.width = speedExpProgress + '%';
+            
+            fireRateExpDisplayElement.textContent = gameState.player.fireRateExp;
+            const fireRateExpProgress = (gameState.player.fireRateExp / 5) * 100;
+            fireRateBarElement.style.width = fireRateExpProgress + '%';
+            
+            weaponExpDisplayElement.textContent = gameState.player.weaponExp;
+            const weaponExpProgress = (gameState.player.weaponExp / 5) * 100;
+            weaponBarElement.style.width = weaponExpProgress + '%';
+        }
+
+        // ゲーム更新
+        function update() {
+            if (!gameState.running) return;
+
+            try {
+                updatePlayer();
+                handleContinuousFire();
+                spawnEnemy();
+                spawnPowerUp();
+
+                // 弾丸更新
+                gameState.bullets = gameState.bullets.filter(bullet => {
+                    if (!bullet) return false;
+                    try {
+                        bullet.update();
+                        return !bullet.isOffScreen();
+                    } catch (e) {
+                        console.error('Bullet update error:', e);
+                        return false;
+                    }
+                });
+
+                // 敵更新
+                gameState.enemies = gameState.enemies.filter(enemy => {
+                    if (!enemy) return false;
+                    try {
+                        enemy.update();
+                        
+                        // プレイヤーと敵の衝突
+                        if (checkCollision(
+                            { x: gameState.player.x - 20, y: gameState.player.y - 20, width: 40, height: 40 },
+                            { x: enemy.x - enemy.width/2, y: enemy.y - enemy.height/2, width: enemy.width, height: enemy.height }
+                        )) {
+                            gameOver();
+                            return false;
+                        }
+                        
+                        return !enemy.isOffScreen();
+                    } catch (e) {
+                        console.error('Enemy update error:', e);
+                        return false;
+                    }
+                });
+
+                // パワーアップ更新
+                gameState.powerUps = gameState.powerUps.filter(powerUp => {
+                    if (!powerUp) return false;
+                    try {
+                        powerUp.update();
+                        
+                        // プレイヤーとパワーアップの衝突
+                        if (checkCollision(
+                            { x: gameState.player.x - 20, y: gameState.player.y - 20, width: 40, height: 40 },
+                            { x: powerUp.x - powerUp.width/2, y: powerUp.y - powerUp.height/2, width: powerUp.width, height: powerUp.height }
+                        )) {
+                            applyPowerUp(powerUp);
+                            return false;
+                        }
+                        
+                        return !powerUp.isOffScreen();
+                    } catch (e) {
+                        console.error('PowerUp update error:', e);
+                        return false;
+                    }
+                });
+
+                // パーティクル更新
+                gameState.particles = gameState.particles.filter(particle => {
+                    if (!particle) return false;
+                    try {
+                        particle.update();
+                        return !particle.isDead();
+                    } catch (e) {
+                        console.error('Particle update error:', e);
+                        return false;
+                    }
+                });
+
+                // 弾丸と敵の衝突
+                for (let i = gameState.bullets.length - 1; i >= 0; i--) {
+                    if (!gameState.bullets[i]) continue; // 安全チェック
+                    
+                    let bulletRemoved = false;
+                    for (let j = gameState.enemies.length - 1; j >= 0; j--) {
+                        if (!gameState.enemies[j]) continue; // 安全チェック
+                        
+                        if (checkCollision(
+                            { x: gameState.bullets[i].x - gameState.bullets[i].width/2, y: gameState.bullets[i].y, width: gameState.bullets[i].width, height: gameState.bullets[i].height },
+                            { x: gameState.enemies[j].x - gameState.enemies[j].width/2, y: gameState.enemies[j].y - gameState.enemies[j].height/2, width: gameState.enemies[j].width, height: gameState.enemies[j].height }
+                        )) {
+                            // ダメージ適用
+                            let totalDamage = gameState.bullets[i].damage || 1;
+                            let enemyDefeated = false;
+                            
+                            // ダメージを1回ずつ適用
+                            for (let dmg = 0; dmg < totalDamage && !enemyDefeated; dmg++) {
+                                if (gameState.enemies[j] && gameState.enemies[j].takeDamage()) {
+                                    gameState.score += gameState.enemies[j].score;
+                                    gameState.stageProgress += gameState.enemies[j].score;
+                                    
+                                    // 爆発エフェクト
+                                    createExplosion(gameState.enemies[j].x, gameState.enemies[j].y, gameState.enemies[j].color);
+                                    playSound('explosion');
+                                    
+                                    gameState.enemies.splice(j, 1);
+                                    enemyDefeated = true;
+                                    checkStageProgress();
+                                }
+                            }
+                            
+                            // 貫通弾でない場合は弾丸を削除
+                            if (!gameState.bullets[i].pierce && !bulletRemoved) {
+                                gameState.bullets.splice(i, 1);
+                                bulletRemoved = true;
+                            }
+                            
+                            scoreElement.textContent = `スコア: ${gameState.score}`;
+                            if (bulletRemoved) break;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Game update error:', e);
+                // エラーが発生してもゲームを継続
+            }
+        }
+
+        // 描画
+        function draw() {
+            try {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (gameState.running) {
+                    drawPlayer();
+                    
+                    gameState.bullets.forEach(bullet => {
+                        if (bullet && bullet.draw) bullet.draw();
+                    });
+                    gameState.enemies.forEach(enemy => {
+                        if (enemy && enemy.draw) enemy.draw();
+                    });
+                    gameState.powerUps.forEach(powerUp => {
+                        if (powerUp && powerUp.draw) powerUp.draw();
+                    });
+                    gameState.particles.forEach(particle => {
+                        if (particle && particle.draw) particle.draw();
+                    });
+                }
+            } catch (e) {
+                console.error('Draw error:', e);
+            }
+        }
+
+        // ゲームオーバー
+        function gameOver() {
+            gameState.running = false;
+            finalScoreElement.textContent = `最終スコア: ${gameState.score}`;
+            gameOverElement.style.display = 'block';
+        }
+
+        // ゲームリスタート
+        function restart() {
+            gameState = {
+                running: true,
+                score: 0,
+                player: {
+                    x: canvas.width / 2,
+                    y: canvas.height - 100,
+                    width: 40,
+                    height: 40,
+                    speed: 8,
+                    weaponLevel: 1,
+                    speedLevel: 1,
+                    fireRateLevel: 1,
+                    weaponType: 'normal',
+                    subWeaponType: 'none',
+                    speedExp: 0,
+                    weaponExp: 0,
+                    fireRateExp: 0,
+                    fireRate: 150,
+                    lastShot: 0,
+                    lastSubShot: 0,
+                    autoFire: true
+                },
+                bullets: [],
+                enemies: [],
+                powerUps: [],
+                particles: [],
+                keys: {},
+                lastEnemySpawn: 0,
+                enemySpawnRate: 1000,
+                lastPowerUpSpawn: 0,
+                powerUpSpawnRate: 8000,
+                stage: 1,
+                stageProgress: 0,
+                stageTarget: 50,
+                audioContext: null,
+                sounds: {}
+            };
+            scoreElement.textContent = 'スコア: 0';
+            gameOverElement.style.display = 'none';
+            updateUI();
+        }
+
+        // ゲームループ
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // キーボードイベント
+        document.addEventListener('keydown', (e) => {
+            gameState.keys[e.code] = true;
+            if (e.code === 'Space') {
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            gameState.keys[e.code] = false;
+        });
+
+        // タッチイベント（タブレット対応）
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let lastShot = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - touchStartX;
+            const deltaY = touch.clientY - touchStartY;
+            
+            gameState.player.x += deltaX * 0.5;
+            gameState.player.y += deltaY * 0.5;
+            
+            // 画面内に制限
+            gameState.player.x = Math.max(20, Math.min(canvas.width - 20, gameState.player.x));
+            gameState.player.y = Math.max(20, Math.min(canvas.height - 20, gameState.player.y));
+            
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const now = Date.now();
+            if (now - lastShot > 200) {
+                shootBullet();
+                lastShot = now;
+            }
+        });
+
+        // リスタートボタン
+        restartBtn.addEventListener('click', restart);
+
+        // ゲーム開始
+        initAudio();
+        updateUI();
+        gameLoop();
+
+        // 音声有効化（ユーザーインタラクション後）
+        function enableAudio() {
+            if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
+                gameState.audioContext.resume().then(() => {
+                    console.log('Audio context resumed');
+                });
+            }
+        }
+        
+        document.addEventListener('click', enableAudio);
+        document.addEventListener('touchstart', enableAudio);
+        document.addEventListener('keydown', enableAudio);
+    </script>
+</body>
+</html>
